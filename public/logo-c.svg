@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title description">
+  <title id="title">时茄：森林绿时钟</title>
+  <desc id="description">钟环顶部是番茄叶冠，环内有两根钟针。</desc>
+  <style>
+    @media (prefers-color-scheme: dark) {
+      svg:not([data-theme="light"]) { --logo-green: #8bc9aa; }
+    }
+    svg[data-theme="dark"] { --logo-green: #8bc9aa; }
+  </style>
+  <g fill="none" stroke="var(--logo-green, #205f52)" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="32" cy="35" r="22" stroke-width="6.5"/>
+    <path d="M32 35V23m0 12 10-7" stroke-width="5.3"/>
+  </g>
+  <circle cx="32" cy="35" r="3.1" fill="var(--logo-green, #205f52)"/>
+  <path fill="var(--logo-green, #205f52)" d="M31.8 17.7c-2.2-5-5.7-7.5-10.4-7.7 1.5 4.4 4.6 7.8 9.1 9.9-6.4-1.9-11.3-1-15.7 2.6 6.1 1.5 11.8.7 17-2.1 5.2 2.8 10.9 3.6 17 2.1-4.4-3.6-9.3-4.5-15.7-2.6 4.5-2.1 7.6-5.5 9.1-9.9-4.7.2-8.2 2.7-10.4 7.7Z"/>
+</svg>

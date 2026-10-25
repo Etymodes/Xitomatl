@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title description">
+  <title id="title">时茄：番茄时钟</title>
+  <desc id="description">番茄轮廓内有两根钟针。</desc>
+  <style>
+    @media (prefers-color-scheme: dark) {
+      svg:not([data-theme="light"]) {
+        --logo-body: #e87969;
+        --logo-leaf: #8bc9aa;
+        --logo-hand: #241c1a;
+      }
+    }
+    svg[data-theme="dark"] {
+      --logo-body: #e87969;
+      --logo-leaf: #8bc9aa;
+      --logo-hand: #241c1a;
+    }
+  </style>
+  <path fill="var(--logo-body, #ad3e34)" d="M32 19c-5.1-3.6-12.4-3.1-17.7 1.1C8 25 6.4 33.5 9.6 41.7 13.6 52 22.4 56.4 32 55.1c9.6 1.3 18.4-3.1 22.4-13.4 3.2-8.2 1.6-16.7-4.7-21.6C44.4 15.9 37.1 15.4 32 19Z"/>
+  <path fill="var(--logo-leaf, #245a48)" d="M32 16.6C26.5 16 21.9 13 19 8.3c6.2-.2 10.5 2.2 13 7.1 2.5-4.9 6.8-7.3 13-7.1-2.9 4.7-7.5 7.7-13 8.3Z"/>
+  <path fill="none" stroke="var(--logo-leaf, #245a48)" stroke-width="4" stroke-linecap="round" d="M32 13V6"/>
+  <path fill="none" stroke="var(--logo-hand, #fff9f0)" stroke-width="5.3" stroke-linecap="round" stroke-linejoin="round" d="M32 25v10l9 5"/>
+  <circle cx="32" cy="35" r="3.1" fill="var(--logo-hand, #fff9f0)"/>
+</svg>

@@ -1,0 +1,19 @@
+{
+  "name": "时茄 Xitomatl",
+  "short_name": "时茄",
+  "description": "随机任务、任务安排与专注计时",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F8F4ED",
+  "theme_color": "#AD3E34",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
