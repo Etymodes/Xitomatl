@@ -18,8 +18,8 @@ import {
 } from './core/index';
 import { createTimer, getTimerSnapshot, pauseTimer, pauseAfterInactiveGap, resumeTimer, formatHms } from './timer';
 import { downloadBackup, emptyData, parseBackup, readData, saveData, STORAGE_KEY, StorageConflictError, type AppData, type DrawStyle, type Theme } from './storage';
-import DrawMachine from './DrawMachine';
-import { wheelLandingRotation, wheelSegments } from './draw';
+import DrawMachine, { DrawPool } from './DrawMachine';
+import { MAX_CAPSULE_BALLS, MAX_TASK_BALLS, withBallWeights, wheelLandingRotation, wheelSegments } from './draw';
 
 type Page = 'tasks' | 'draw' | 'focus' | 'summary' | 'settings';
 type TaskFilter = 'today' | 'all' | 'planned' | 'archived';
@@ -216,7 +216,9 @@ export default function App() {
   const drawTimeout = useRef<number | null>(null);
   const pendingDraw = useRef<DrawCandidate | null>(null);
   const today = localDateKey(new Date(now));
-  const candidates = useMemo(() => getDrawCandidates(data.tasks, data.sessions, new Date()), [data.tasks, data.sessions, today]);
+  const baseCandidates = useMemo(() => getDrawCandidates(data.tasks, data.sessions, new Date()), [data.tasks, data.sessions, today]);
+  const candidates = useMemo(() => withBallWeights(baseCandidates, data.settings.ballCounts), [baseCandidates, data.settings.ballCounts]);
+  const totalBalls = candidates.reduce((sum, candidate) => sum + candidate.weight, 0);
   const displayedCandidates = spinning && roundCandidates ? roundCandidates : candidates;
   const active = data.activeFocus;
   const activeTask = active ? data.tasks.find((task) => task.id === active.taskId) : null;
@@ -325,8 +327,18 @@ export default function App() {
     setPage('draw');
   }
 
+  function setBallCount(taskId: string, count: number) {
+    if (spinning || !Number.isInteger(count) || count < 0 || count > MAX_TASK_BALLS) return;
+    const previous = candidates.find((candidate) => candidate.task.id === taskId)?.weight ?? 0;
+    if (totalBalls - previous + count > MAX_CAPSULE_BALLS && count > previous) {
+      showNotice('最多放入 ' + MAX_CAPSULE_BALLS + ' 颗球，请先减少其他任务的球数。');
+      return;
+    }
+    setSelected(null);
+    setData((current) => ({ ...current, settings: { ...current.settings, ballCounts: { ...current.settings.ballCounts, [taskId]: count } } }));
+  }
   function doDraw() {
-    if (candidates.length === 0 || spinning) return;
+    if (totalBalls === 0 || totalBalls > MAX_CAPSULE_BALLS || spinning) return;
     setSelected(null);
     const result = drawTask(candidates, Math.random());
     pendingDraw.current = result;
@@ -340,7 +352,7 @@ export default function App() {
       return;
     }
     setSpinning(true);
-    drawTimeout.current = window.setTimeout(revealDraw, data.settings.drawStyle === 'wheel' ? 3600 : 1600);
+    drawTimeout.current = window.setTimeout(revealDraw, data.settings.drawStyle === 'wheel' ? 3600 : 12000);
   }
 
   function revealDraw() {
@@ -498,7 +510,7 @@ export default function App() {
         {page === 'tasks' && <>
           <section className="hero">
             <div><span className="eyebrow">MY TASKS · 我的任务</span><h1>今天，先从一件事开始。</h1><p>把脑中的待办放在这里。准备好时，让时茄帮你选一个起点。</p></div>
-            <div className="hero-actions"><button className="button primary large" disabled={candidates.length === 0 || Boolean(active) || dayEnded} onClick={() => { setSelected(null); setPage('draw'); }}>开始抽取 <span aria-hidden="true">↗</span></button><button className="button white" onClick={() => setEditing('new')}>＋ 登记任务</button></div>
+            <div className="hero-actions"><button className="button primary large" disabled={totalBalls === 0 || totalBalls > MAX_CAPSULE_BALLS || Boolean(active) || dayEnded} onClick={() => { setSelected(null); setPage('draw'); }}>开始抽取 <span aria-hidden="true">↗</span></button><button className="button white" onClick={() => setEditing('new')}>＋ 登记任务</button></div>
           </section>
           {dayEnded && <div className="banner"><div><strong>今天的量已完成。</strong><span>所有记录都可以在每日总结中查看；如需继续，也可以重新开启今天。</span></div><button className="button small secondary" onClick={() => setData((current) => ({ ...current, dayEndedOn: null }))}>继续今天</button></div>}
           {urgent.length > 0 && <div className="deadline-alert"><strong>截止日期提醒</strong><span>{urgent.length} 项任务今天截止或已经逾期。</span><button disabled={Boolean(active) || dayEnded} onClick={() => prepareTask(urgent[0])}>直接开始最紧急任务 →</button></div>}
@@ -512,17 +524,19 @@ export default function App() {
           {active ? <div className="banner"><strong>已有正在进行的专注。</strong><button className="button small primary" onClick={() => setPage('focus')}>返回计时</button></div> : dayEnded ? <div className="empty-state"><h3>今天已经收工</h3><p>你可以明天再抽取，也可以继续今天。</p><button className="button primary" onClick={() => setData((current) => ({ ...current, dayEndedOn: null }))}>继续今天</button></div> : <>
             <div className="draw-layout"><div className="draw-machine-panel">
               <div className="style-switch" role="group" aria-label="抽取外观"><button disabled={spinning} aria-pressed={data.settings.drawStyle === 'capsule'} className={data.settings.drawStyle === 'capsule' ? 'active' : ''} onClick={() => updateSetting('drawStyle', 'capsule' as DrawStyle)}>扭蛋机</button><button disabled={spinning} aria-pressed={data.settings.drawStyle === 'wheel'} className={data.settings.drawStyle === 'wheel' ? 'active' : ''} onClick={() => updateSetting('drawStyle', 'wheel' as DrawStyle)}>转盘</button></div>
-              <DrawMachine style={data.settings.drawStyle} candidates={displayedCandidates} spinning={spinning} rotation={wheelRotation} selectedId={selected?.task.id} disabled={candidates.length === 0 || spinning} onDraw={doDraw} onChoose={(candidate) => prepareTask(candidate.task)} />
-              <button className="button primary large draw-button" onClick={doDraw} disabled={candidates.length === 0 || spinning}>{spinning ? '正在抽取…' : selected ? '再抽一次' : '抽取任务'}</button>
+              <DrawMachine style={data.settings.drawStyle} candidates={displayedCandidates} spinning={spinning} rotation={wheelRotation} selectedId={selected?.task.id} disabled={totalBalls === 0 || totalBalls > MAX_CAPSULE_BALLS || spinning} onDraw={doDraw} drawTargetId={spinning ? pendingDraw.current?.task.id : undefined} onComplete={revealDraw} />
+              <button className="button primary large draw-button" onClick={doDraw} disabled={totalBalls === 0 || totalBalls > MAX_CAPSULE_BALLS || spinning}>{spinning ? '正在抽取…' : selected ? '再抽一次' : '抽取任务'}</button>
               {spinning && <button className="text-button skip-button" onClick={revealDraw}>跳过动画</button>}
-              <p className="draw-note">抽取有随机性；临近截止日期的任务会获得更高权重。</p>
-            </div><div className="draw-result-panel">
+              <p className="draw-note">球数决定抽取概率。初始建议参考截止日期和任务历史，你可以在旁边调整。</p>
+            </div><aside className="draw-side-panel">
+              <DrawPool candidates={displayedCandidates} selectedId={selected?.task.id} disabled={spinning} onChoose={(candidate) => prepareTask(candidate.task)} onCount={setBallCount} onReset={() => { setSelected(null); updateSetting('ballCounts', {}); }} onEqual={() => { setSelected(null); updateSetting('ballCounts', Object.fromEntries(candidates.map((candidate) => [candidate.task.id, Math.max(1, Math.min(4, Math.floor(MAX_CAPSULE_BALLS / Math.max(1, candidates.length))))]))); }} />
+              <div className="draw-result-panel">
               {selected ? <><span className="eyebrow">YOUR NEXT TASK</span><div className="result-mark">✦</div><span className="kind-pill">{kindNames[selected.task.kind]}</span><h2>{selected.task.title}</h2>{selected.task.sop.length > 0 && <p className="result-steps">{selected.task.sop.filter((item) => !item.completedAt).length} 个步骤待完成</p>}
                 <details className="why"><summary>为什么抽到它？</summary><ul>{selected.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><p>这是可解释的产品规则，不代表预测了你的效率。</p></details>
                 <div className="duration-area"><h3>这次专注多久？</h3><p>{selectedSuggestion?.explanation}</p><div className="duration-options">{([null, 15, 25, 45] as const).map((value) => <button key={String(value)} className={duration === value ? 'active' : ''} onClick={() => setDuration(value)}>{value === null ? '不定时' : `${value} 分`}</button>)}<button className={duration === data.settings.customMinutes ? 'active' : ''} onClick={() => setDuration(data.settings.customMinutes)}>自定义</button></div><label className="custom-duration">自定义分钟数 <input type="number" min="1" max="480" value={data.settings.customMinutes} onChange={(event) => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 1 && value <= 480) { updateSetting('customMinutes', value); setDuration(value); } }} /></label></div>
                 <button className="button primary large start-focus" onClick={beginFocus}>开始专注 <span aria-hidden="true">→</span></button>
               </> : <div className="result-placeholder"><div className="placeholder-star">✳</div><h2>让下一件事出现</h2><p>抽取后，你可以先看任务，再决定是否开始。</p></div>}
-            </div></div>
+            </div></aside></div>
             {candidates.length === 0 && <p className="inline-empty">当前没有可抽取任务。先在任务表中登记或启用任务。</p>}
           </>}
         </section>}

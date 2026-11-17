@@ -10,6 +10,7 @@ export interface Settings {
   bell: boolean;
   fullCover: boolean;
   customMinutes: number;
+  ballCounts: Record<string, number>;
 }
 
 export interface ActiveFocus {
@@ -126,6 +127,7 @@ export function emptyData(): AppData {
       bell: true,
       fullCover: true,
       customMinutes: 30,
+      ballCounts: {},
     },
     activeFocus: null,
     dayEndedOn: null,
@@ -150,6 +152,10 @@ export function parseBackup(value: unknown): AppData {
     throw new Error('备份中的任务事件格式不正确。');
   }
   if (input.settings !== undefined && !isRecord(input.settings)) throw new Error('备份中的设置格式不正确。');
+  if (input.settings?.ballCounts !== undefined && (!isRecord(input.settings.ballCounts) ||
+      !Object.values(input.settings.ballCounts).every((count) => Number.isInteger(count) && count >= 0 && count <= 50))) {
+    throw new Error('备份中的任务球数格式不正确。');
+  }
   if (input.dayEndedOn !== undefined && input.dayEndedOn !== null && !isDateKey(input.dayEndedOn)) throw new Error('备份中的日期格式不正确。');
   if (input.activeFocus !== undefined && input.activeFocus !== null) {
     const focus = input.activeFocus;
@@ -176,6 +182,7 @@ export function parseBackup(value: unknown): AppData {
     stepEvents: input.stepEvents ?? [],
     taskEvents: input.taskEvents ?? [],
     settings: {
+      ballCounts: settings.ballCounts ?? {},
       drawStyle: settings.drawStyle === 'wheel' ? 'wheel' : 'capsule',
       theme: settings.theme === 'forest' || settings.theme === 'ink' ? settings.theme : 'tomato',
       bell: settings.bell !== false,

@@ -1,7 +1,7 @@
 {
   "name": "xitomatl",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.0",
   "productName": "时茄 Xitomatl",
   "type": "module",
   "main": "electron/main.cjs",
@@ -15,10 +15,12 @@
     "desktop:package:win": "npm run build && electron-builder --win portable --x64 --publish never"
   },
   "dependencies": {
+    "matter-js": "^0.20.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@types/matter-js": "^0.20.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.1.0",

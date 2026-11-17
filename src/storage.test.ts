@@ -73,3 +73,15 @@ test('a stale tab cannot overwrite a newer saved snapshot', (t) => {
   assert.equal(storage.writes, 2);
   assert.equal(readData().data.dayEndedOn, '2026-10-25');
 });
+
+test('ball weights survive backup import; old backups receive defaults and invalid weights are rejected', () => {
+  const data = emptyData();
+  data.settings.ballCounts = { first: 0, second: 12 };
+  assert.deepEqual(parseBackup(JSON.parse(JSON.stringify(data))).settings.ballCounts, { first: 0, second: 12 });
+  const old = emptyData();
+  delete old.settings.ballCounts;
+  assert.deepEqual(parseBackup(old).settings.ballCounts, {});
+  for (const count of [-1, 1.5, 51]) {
+    assert.throws(() => parseBackup({ ...data, settings: { ...data.settings, ballCounts: { first: count } } }), /球数/);
+  }
+});
