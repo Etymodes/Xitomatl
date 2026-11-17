@@ -18,6 +18,8 @@ import {
 } from './core/index';
 import { createTimer, getTimerSnapshot, pauseTimer, pauseAfterInactiveGap, resumeTimer, formatHms } from './timer';
 import { downloadBackup, emptyData, parseBackup, readData, saveData, STORAGE_KEY, StorageConflictError, type AppData, type DrawStyle, type Theme } from './storage';
+import DrawMachine from './DrawMachine';
+import { wheelLandingRotation, wheelSegments } from './draw';
 
 type Page = 'tasks' | 'draw' | 'focus' | 'summary' | 'settings';
 type TaskFilter = 'today' | 'all' | 'planned' | 'archived';
@@ -202,6 +204,8 @@ export default function App() {
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
   const [selected, setSelected] = useState<DrawCandidate | null>(null);
   const [spinning, setSpinning] = useState(false);
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [roundCandidates, setRoundCandidates] = useState<DrawCandidate[] | null>(null);
   const [duration, setDuration] = useState<number | null>(25);
   const [now, setNow] = useState(Date.now());
   const [notice, setNotice] = useState('');
@@ -213,6 +217,7 @@ export default function App() {
   const pendingDraw = useRef<DrawCandidate | null>(null);
   const today = localDateKey(new Date(now));
   const candidates = useMemo(() => getDrawCandidates(data.tasks, data.sessions, new Date()), [data.tasks, data.sessions, today]);
+  const displayedCandidates = spinning && roundCandidates ? roundCandidates : candidates;
   const active = data.activeFocus;
   const activeTask = active ? data.tasks.find((task) => task.id === active.taskId) : null;
   const timer = active ? getTimerSnapshot(active.timer, now) : null;
@@ -238,6 +243,15 @@ export default function App() {
   }, [data.stepEvents, summaryDate]);
 
   useEffect(() => { const id = window.setInterval(() => setNow(Date.now()), 500); return () => window.clearInterval(id); }, []);
+  useEffect(() => {
+    if (page !== 'draw') {
+      if (drawTimeout.current !== null) window.clearTimeout(drawTimeout.current);
+      drawTimeout.current = null;
+      pendingDraw.current = null;
+      setSpinning(false);
+    }
+  }, [page]);
+  useEffect(() => () => { if (drawTimeout.current !== null) window.clearTimeout(drawTimeout.current); }, []);
   useEffect(() => {
     if (loadError || writeConflict || !active || active.timer.runningSinceMs === null) return;
     const id = window.setInterval(() => {
@@ -304,7 +318,9 @@ export default function App() {
 
   function prepareTask(task: Task) {
     const candidate = candidates.find((item) => item.task.id === task.id) ?? { task, weight: 1, reasons: ['由你直接选择'] };
-    setSelected(candidate);
+    setSelected({ ...candidate, reasons: ['由你直接选择', ...candidate.reasons] });
+    const segment = wheelSegments(candidates).find((item) => item.candidate.task.id === task.id);
+    if (segment) setWheelRotation((current) => wheelLandingRotation(current, segment.middleAngle, 0));
     setDuration(recommendDuration(task, data.sessions).minutes);
     setPage('draw');
   }
@@ -314,6 +330,9 @@ export default function App() {
     setSelected(null);
     const result = drawTask(candidates, Math.random());
     pendingDraw.current = result;
+    setRoundCandidates(candidates);
+    const segment = wheelSegments(candidates).find((item) => item.candidate.task.id === result?.task.id);
+    if (segment) setWheelRotation((current) => wheelLandingRotation(current, segment.middleAngle));
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reducedMotion) {
       setSelected(result);
@@ -321,7 +340,7 @@ export default function App() {
       return;
     }
     setSpinning(true);
-    drawTimeout.current = window.setTimeout(revealDraw, 1000);
+    drawTimeout.current = window.setTimeout(revealDraw, data.settings.drawStyle === 'wheel' ? 3600 : 1600);
   }
 
   function revealDraw() {
@@ -492,8 +511,8 @@ export default function App() {
           <div className="page-heading"><span className="eyebrow">RANDOM DRAW</span><h1>抽取下一件事</h1><p>从 {candidates.length} 项近期任务中抽取。你始终可以重抽，或回任务表自行选择。</p></div>
           {active ? <div className="banner"><strong>已有正在进行的专注。</strong><button className="button small primary" onClick={() => setPage('focus')}>返回计时</button></div> : dayEnded ? <div className="empty-state"><h3>今天已经收工</h3><p>你可以明天再抽取，也可以继续今天。</p><button className="button primary" onClick={() => setData((current) => ({ ...current, dayEndedOn: null }))}>继续今天</button></div> : <>
             <div className="draw-layout"><div className="draw-machine-panel">
-              <div className="style-switch" role="group" aria-label="抽取外观"><button className={data.settings.drawStyle === 'capsule' ? 'active' : ''} onClick={() => updateSetting('drawStyle', 'capsule' as DrawStyle)}>扭蛋桶</button><button className={data.settings.drawStyle === 'wheel' ? 'active' : ''} onClick={() => updateSetting('drawStyle', 'wheel' as DrawStyle)}>转盘</button></div>
-              <div className={`draw-visual ${data.settings.drawStyle} ${spinning ? 'spinning' : ''}`} aria-hidden="true">{data.settings.drawStyle === 'capsule' ? <><div className="capsule-top"><i /><i /><i /><i /><i /></div><div className="capsule-neck" /><div className="capsule-base"><span>?</span></div></> : <><div className="wheel-disc"><span>✦</span><span>●</span><span>✦</span><span>●</span></div><div className="wheel-pointer" /></>}</div>
+              <div className="style-switch" role="group" aria-label="抽取外观"><button disabled={spinning} aria-pressed={data.settings.drawStyle === 'capsule'} className={data.settings.drawStyle === 'capsule' ? 'active' : ''} onClick={() => updateSetting('drawStyle', 'capsule' as DrawStyle)}>扭蛋机</button><button disabled={spinning} aria-pressed={data.settings.drawStyle === 'wheel'} className={data.settings.drawStyle === 'wheel' ? 'active' : ''} onClick={() => updateSetting('drawStyle', 'wheel' as DrawStyle)}>转盘</button></div>
+              <DrawMachine style={data.settings.drawStyle} candidates={displayedCandidates} spinning={spinning} rotation={wheelRotation} selectedId={selected?.task.id} disabled={candidates.length === 0 || spinning} onDraw={doDraw} onChoose={(candidate) => prepareTask(candidate.task)} />
               <button className="button primary large draw-button" onClick={doDraw} disabled={candidates.length === 0 || spinning}>{spinning ? '正在抽取…' : selected ? '再抽一次' : '抽取任务'}</button>
               {spinning && <button className="text-button skip-button" onClick={revealDraw}>跳过动画</button>}
               <p className="draw-note">抽取有随机性；临近截止日期的任务会获得更高权重。</p>

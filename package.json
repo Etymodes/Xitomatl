@@ -1,7 +1,7 @@
 {
   "name": "xitomatl",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "productName": "时茄 Xitomatl",
   "type": "module",
   "main": "electron/main.cjs",
